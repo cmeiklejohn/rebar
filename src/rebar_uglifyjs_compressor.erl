@@ -104,18 +104,26 @@ target_file(Source, Options) ->
     ModuleExt = option(module_ext, Options),
     filename:join([option(out_dir, Options), filename:basename(Source, SourceExt) ++ ModuleExt ++ SourceExt]).
 
+needs_compile(Source, Target) ->
+    filelib:last_modified(Target) < filelib:last_modified(Source).
+
 compress_each([]) ->
     ok;
 compress_each([{Source, Target} | Rest]) ->
-    Cmd = lists:flatten(["uglifyjs ", " -o ", Target, " ", Source]),
-    ShOpts = [{use_stdout, false}, return_on_error],
-    case rebar_utils:sh(Cmd, ShOpts) of
-        {ok, _} ->
-            ?CONSOLE("Compressed asset ~s to ~s\n", [Source, Target]);
-        {error, Reason} ->
-            ?ERROR("Compressing asset ~s failed:~n  ~p~n",
-                   [Source, Reason]),
-            ?ABORT
+    case needs_compile(Source, Target) of
+        true ->
+            Cmd = lists:flatten(["uglifyjs ", " -o ", Target, " ", Source]),
+            ShOpts = [{use_stdout, false}, return_on_error],
+            case rebar_utils:sh(Cmd, ShOpts) of
+                {ok, _} ->
+                    ?CONSOLE("Compressed asset ~s to ~s\n", [Source, Target]);
+                {error, Reason} ->
+                    ?ERROR("Compressing asset ~s failed:~n  ~p~n",
+                           [Source, Reason]),
+                    ?ABORT
+            end;
+        false ->
+            ok
     end,
     compress_each(Rest).
 

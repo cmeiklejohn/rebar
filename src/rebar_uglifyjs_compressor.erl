@@ -53,7 +53,8 @@
 
 -module(rebar_uglifyjs_compressor).
 
--export([compile/2]).
+-export([compile/2,
+         clean/2]).
 
 -include("rebar.hrl").
 
@@ -86,6 +87,20 @@ compile(Config, _AppFile) ->
             end
     end.
 
+clean(Config, _AppFile) ->
+    Options = options(Config),
+    DocRoot = option(doc_root, Options),
+    SourceExt = option(source_ext, Options),
+    ModuleExt = option(module_ext, Options),
+    FileGlob = lists:flatten([".*", "[^\\", ModuleExt ,"]", "\\", SourceExt, "$"]),
+    case rebar_utils:find_files(DocRoot, FileGlob) of
+        [] ->
+            ok;
+        FoundFiles ->
+            Targets = [target_file(Source, Options) || Source <- FoundFiles],
+            delete_each(Targets)
+    end.
+
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
@@ -109,6 +124,19 @@ target_file(Source, Options) ->
 
 needs_compile(Source, Target) ->
     filelib:last_modified(Target) < filelib:last_modified(Source).
+
+delete_each([]) ->
+    ok;
+delete_each([File | Rest]) ->
+    case file:delete(File) of
+        ok ->
+            ok;
+        {error, enoent} ->
+            ok;
+        {error, Reason} ->
+            ?ERROR("Failed to delete ~s: ~p\n", [File, Reason])
+    end,
+    delete_each(Rest).
 
 compress_each([]) ->
     ok;

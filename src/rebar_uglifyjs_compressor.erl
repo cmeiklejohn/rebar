@@ -60,11 +60,14 @@
 %% ===================================================================
 %% Public API
 %% ===================================================================
-%
+
 compile(Config, _AppFile) ->
     Options = options(Config),
-    FileGlob = lists:flatten([".*\\", option(source_ext, Options), "\$"]),
-    case rebar_utils:find_files(option(doc_root, Options), FileGlob) of
+    DocRoot = option(doc_root, Options),
+    SourceExt = option(source_ext, Options),
+    ModuleExt = option(module_ext, Options),
+    FileGlob = lists:flatten([".*", "[^\\", ModuleExt ,"]", "\\", SourceExt, "$"]),
+    case rebar_utils:find_files(DocRoot, FileGlob) of
         [] ->
             ok;
         FoundFiles ->

@@ -31,6 +31,9 @@
 %% Configuration options should be placed in rebar.config under
 %% 'js_uglify'.  Available options include:
 %%
+%%  uglify_path: path to the uglify executable
+%%               "/usr/local/bin/uglifyjs" by default
+%%
 %%  doc_root: where to find javascript files to compile
 %%            "priv/assets/javascripts" by default
 %%
@@ -42,6 +45,7 @@
 %%
 %% The default settings are the equivalent of:
 %%   {js_uglify, [
+%%               {uglify_path, "/usr/local/bin/uglifyjs"},
 %%               {doc_root, "priv/assets/javascripts"},
 %%               {out_dir, "priv/www/javascripts"},
 %%               {compressions, []}
@@ -50,6 +54,7 @@
 %% An example of compressing a series of javascript files:
 %%
 %%   {js_uglify, [
+%%      {uglify_path, "/usr/local/bin/uglifyjs"},
 %%      {doc_root, "priv/assets/javascripts"},
 %%      {out_dir, "priv/www/javascripts"},
 %%      {compressions, [
@@ -74,7 +79,8 @@ compile(Config, _AppFile) ->
     OutDir = option(out_dir, Options),
     DocRoot = option(doc_root, Options),
     Compressions = option(compressions, Options),
-    case uglifyjs_is_present() of
+    Uglifier = option(uglify_path, Options),
+    case uglifyjs_is_present(Uglifier) of
         true ->
             Targets = [{normalize_path(Destination, OutDir),
                         normalize_path(Source, DocRoot)}
@@ -111,6 +117,7 @@ option(Option, Options) ->
 
 default(doc_root) -> "priv/assets/javascripts";
 default(out_dir)  -> "priv/www/javascripts";
+default(uglify_path) -> "/usr/local/bin/uglifyjs";
 default(compressions) -> [].
 
 normalize_path(Path, Basedir) -> filename:join([Basedir, Path]).
@@ -151,12 +158,4 @@ compress_each([{Destination, Source} | Rest]) ->
     end,
     compress_each(Rest).
 
-uglifyjs_is_present() ->
-    Cmd = lists:flatten(["which uglifyjs"]),
-    ShOpts = [{use_stdout, false}, return_on_error],
-    case rebar_utils:sh(Cmd, ShOpts) of
-        {ok, _} ->
-            true;
-        {error, _} ->
-            false
-    end.
+uglifyjs_is_present(Uglifier) -> filelib:is_file(Uglifier).

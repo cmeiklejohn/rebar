@@ -35,7 +35,7 @@
 %%            "priv/assets/javascripts" by default
 %%
 %%  out_dir: where to put compressed javascript files
-%%           "priv/assets/javascripts" by default
+%%           "priv/www/javascripts" by default
 %%
 %%  source_ext: the file extension the javascript sources have
 %%              ".js" by default
@@ -46,7 +46,7 @@
 %% The default settings are the equivalent of:
 %%   {uglifyjs, [
 %%               {doc_root,   "priv/assets/javascripts"},
-%%               {out_dir,    "priv/assets/javascripts"},
+%%               {out_dir,    "priv/www/javascripts"},
 %%               {source_ext, ".js"},
 %%               {module_ext, ".min"}
 %%              ]}.
@@ -112,7 +112,7 @@ option(Option, Options) ->
     proplists:get_value(Option, Options, default(Option)).
 
 default(doc_root) -> "priv/assets/javascripts";
-default(out_dir)  -> "priv/assets/javascripts";
+default(out_dir)  -> "priv/www/javascripts";
 default(source_ext) -> ".js";
 default(module_ext) -> ".min";
 default(custom_tags_dir) -> "".
@@ -127,14 +127,14 @@ needs_compile(Source, Target) ->
 
 delete_each([]) ->
     ok;
-delete_each([File | Rest]) ->
-    case file:delete(File) of
+delete_each([First | Rest]) ->
+    case file:delete(First) of
         ok ->
             ok;
         {error, enoent} ->
             ok;
         {error, Reason} ->
-            ?ERROR("Failed to delete ~s: ~p\n", [File, Reason])
+            ?ERROR("Failed to delete ~s: ~p\n", [First, Reason])
     end,
     delete_each(Rest).
 

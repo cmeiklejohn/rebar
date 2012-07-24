@@ -79,14 +79,12 @@
 
 compile(Config, _AppFile) ->
     Options = options(Config),
-    OutDir = option(out_dir, Options),
-    DocRoot = option(doc_root, Options),
     Sources = option(sources, Options),
     case uglifyjs_is_present() of
         true ->
             Targets = [
-                [{source, normalize_path(Source, Options, DocRoot)},
-                 {destination, normalize_path(Source, Options, OutDir)}]
+                [{source, normalize_source_path(Source, Options)},
+                 {destination, normalize_destination_path(Source, Options)}]
                 || Source <- Sources],
             compress_each(Targets);
         false ->
@@ -101,9 +99,8 @@ compile(Config, _AppFile) ->
 
 clean(Config, _AppFile) ->
     Options = options(Config),
-    OutDir = option(out_dir, Options),
     Sources = option(sources, Options),
-    Targets = [normalize_path(Source, Options, OutDir) || Source <- Sources],
+    Targets = [normalize_destination_path(Source, Options) || Source <- Sources],
     delete_each(Targets),
     ok.
 
@@ -124,10 +121,14 @@ default(source_ext) -> ".js";
 default(module_ext) -> ".min";
 default(custom_tags_dir) -> "".
 
-normalize_path(Path, Options, Basedir) ->
+normalize_source_path(Path, Options) ->
+    filename:join([option(doc_root, Options), Path]).
+
+normalize_destination_path(Path, Options) ->
+    OutDir = option(out_dir, Options),
     SourceExt = option(source_ext, Options),
     ModuleExt = option(module_ext, Options),
-    filename:join([Basedir, filename:basename(Path, SourceExt) ++ ModuleExt ++ SourceExt]).
+    filename:join([OutDir, filename:basename(Path, SourceExt) ++ ModuleExt ++ SourceExt]).
 
 needs_compress(Source, Target) ->
     filelib:last_modified(Target) < filelib:last_modified(Source).

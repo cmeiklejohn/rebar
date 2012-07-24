@@ -25,11 +25,11 @@
 %% THE SOFTWARE.
 %% -------------------------------------------------------------------
 
-%% The rebar_uglifyjs_compressor module is a plugin for rebar that compresses
+%% The rebar_js_uglifier module is a plugin for rebar that compresses
 %% javascript files using UglifyJS.
 %%
 %% Configuration options should be placed in rebar.config under
-%% 'uglifyjs'.  Available options include:
+%% 'js_uglify'.  Available options include:
 %%
 %%  doc_root: where to find javascript files to compile
 %%            "priv/assets/javascripts" by default
@@ -37,21 +37,36 @@
 %%  out_dir: where to put compressed javascript files
 %%           "priv/www/javascripts" by default
 %%
-%%  source_ext: the file extension the javascript sources have
+%%  sources: list of files to concatenate
+%%           empty list by default.
+%
+%%  source_ext: extension of source files
 %%              ".js" by default
 %%
 %%  module_ext: characters to append to the javascript's file name
 %%              ".min" by default
 %%
 %% The default settings are the equivalent of:
-%%   {uglifyjs, [
+%%   {js_uglify, [
 %%               {doc_root,   "priv/assets/javascripts"},
 %%               {out_dir,    "priv/www/javascripts"},
-%%               {source_ext, ".js"},
+%%               {sources,    []}
+%%               {source_ext, ".js"}
 %%               {module_ext, ".min"}
 %%              ]}.
+%%
+%% An example of compressing a series of javascript files:
+%%
+%%   {js_uglify, [
+%%               {doc_root,   "priv/assets/javascripts"},
+%%               {out_dir,    "priv/www/javascripts"},
+%%               {sources,    ["application.js", "vendor.js"]}
+%%               {source_ext, ".js"}
+%%               {module_ext, ".min"}
+%%              ]}.
+%%
 
--module(rebar_uglifyjs_compressor).
+-module(rebar_js_uglifier).
 
 -export([compile/2,
          clean/2]).
@@ -64,63 +79,55 @@
 
 compile(Config, _AppFile) ->
     Options = options(Config),
+    OutDir = option(out_dir, Options),
     DocRoot = option(doc_root, Options),
-    SourceExt = option(source_ext, Options),
-    ModuleExt = option(module_ext, Options),
-    FileGlob = lists:flatten([".*", "[^\\", ModuleExt ,"]", "\\", SourceExt, "$"]),
-    case rebar_utils:find_files(DocRoot, FileGlob) of
-        [] ->
-            ok;
-        FoundFiles ->
-            case uglifyjs_is_present() of
-                true ->
-                    Targets = [{Source, target_file(Source, Options)} || Source <- FoundFiles],
-                    compress_each(Targets);
-                false ->
-                    ?ERROR(
-                        "~n===============================================~n"
-                        " You need to install uglify-js to compress assets~n"
-                        " Please run the following: npm install uglify-js~n"
-                        "===============================================~n~n",
-                        []),
-                    ?ABORT
-            end
+    Sources = option(sources, Options),
+    case uglifyjs_is_present() of
+        true ->
+            Targets = [
+                [{source, normalize_path(Source, Options, DocRoot)},
+                 {destination, normalize_path(Source, Options, OutDir)}]
+                || Source <- Sources],
+            compress_each(Targets);
+        false ->
+            ?ERROR(
+                "~n===============================================~n"
+                " You need to install uglify-js to compress assets~n"
+                " Please run the following: npm install uglify-js~n"
+                "===============================================~n~n",
+                []),
+            ?ABORT
     end.
 
 clean(Config, _AppFile) ->
     Options = options(Config),
-    DocRoot = option(doc_root, Options),
-    SourceExt = option(source_ext, Options),
-    ModuleExt = option(module_ext, Options),
-    FileGlob = lists:flatten([".*", "[^\\", ModuleExt ,"]", "\\", SourceExt, "$"]),
-    case rebar_utils:find_files(DocRoot, FileGlob) of
-        [] ->
-            ok;
-        FoundFiles ->
-            Targets = [target_file(Source, Options) || Source <- FoundFiles],
-            delete_each(Targets)
-    end.
+    OutDir = option(out_dir, Options),
+    Sources = option(sources, Options),
+    Targets = [normalize_path(Source, Options, OutDir) || Source <- Sources],
+    delete_each(Targets),
+    ok.
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
 options(Config) ->
-    rebar_config:get(Config, uglifyjs, []).
+    rebar_config:get(Config, js_uglify, []).
 
 option(Option, Options) ->
     proplists:get_value(Option, Options, default(Option)).
 
 default(doc_root) -> "priv/assets/javascripts";
 default(out_dir)  -> "priv/www/javascripts";
+default(sources)  -> [];
 default(source_ext) -> ".js";
 default(module_ext) -> ".min";
 default(custom_tags_dir) -> "".
 
-target_file(Source, Options) ->
+normalize_path(Path, Options, Basedir) ->
     SourceExt = option(source_ext, Options),
     ModuleExt = option(module_ext, Options),
-    filename:join([option(out_dir, Options), filename:basename(Source, SourceExt) ++ ModuleExt ++ SourceExt]).
+    filename:join([Basedir, filename:basename(Path, SourceExt) ++ ModuleExt ++ SourceExt]).
 
 needs_compile(Source, Target) ->
     filelib:last_modified(Target) < filelib:last_modified(Source).
@@ -140,14 +147,16 @@ delete_each([First | Rest]) ->
 
 compress_each([]) ->
     ok;
-compress_each([{Source, Target} | Rest]) ->
-    case needs_compile(Source, Target) of
+compress_each([First | Rest]) ->
+    Source = proplists:get_value(source, First),
+    Destination = proplists:get_value(destination, First),
+    case needs_compile(Source, Destination) of
         true ->
-            Cmd = lists:flatten(["uglifyjs ", " -o ", Target, " ", Source]),
+            Cmd = lists:flatten(["uglifyjs ", " -o ", Destination, " ", Source]),
             ShOpts = [{use_stdout, false}, return_on_error],
             case rebar_utils:sh(Cmd, ShOpts) of
                 {ok, _} ->
-                    ?CONSOLE("Compressed asset ~s to ~s\n", [Source, Target]);
+                    ?CONSOLE("Compressed asset ~s to ~s\n", [Source, Destination]);
                 {error, Reason} ->
                     ?ERROR("Compressing asset ~s failed:~n  ~p~n",
                            [Source, Reason]),

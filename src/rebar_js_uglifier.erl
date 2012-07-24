@@ -129,7 +129,7 @@ normalize_path(Path, Options, Basedir) ->
     ModuleExt = option(module_ext, Options),
     filename:join([Basedir, filename:basename(Path, SourceExt) ++ ModuleExt ++ SourceExt]).
 
-needs_compile(Source, Target) ->
+needs_compress(Source, Target) ->
     filelib:last_modified(Target) < filelib:last_modified(Source).
 
 delete_each([]) ->
@@ -150,7 +150,7 @@ compress_each([]) ->
 compress_each([First | Rest]) ->
     Source = proplists:get_value(source, First),
     Destination = proplists:get_value(destination, First),
-    case needs_compile(Source, Destination) of
+    case needs_compress(Source, Destination) of
         true ->
             Cmd = lists:flatten(["uglifyjs ", " -o ", Destination, " ", Source]),
             ShOpts = [{use_stdout, false}, return_on_error],

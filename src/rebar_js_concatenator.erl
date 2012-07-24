@@ -104,7 +104,7 @@ default(out_dir)  -> "priv/assets/javascripts";
 default(concatenations) -> [].
 
 normalize_paths(Paths, Basedir) ->
-    lists:foldl(fun(X, Acc) -> [normalize_path(X, Basedir) | Acc] end, [], Paths).
+    lists:foldr(fun(X, Acc) -> [normalize_path(X, Basedir) | Acc] end, [], Paths).
 normalize_path(Path, Basedir) ->
     filename:join([Basedir, Path]).
 

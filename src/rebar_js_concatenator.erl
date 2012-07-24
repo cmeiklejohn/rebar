@@ -113,14 +113,19 @@ build_each([]) ->
 build_each([First | Rest]) ->
     Sources = proplists:get_value(sources, First),
     Destination = proplists:get_value(destination, First),
-    Contents = [read(Source) || Source <- Sources],
-    case file:write_file(Destination, lists:flatten(Contents), [write]) of
-        ok ->
-            ?CONSOLE("Built asset ~s~n", [Destination]);
-        {error, Reason} ->
-            ?ERROR("Building asset ~s failed:~n  ~p~n",
-                   [Destination, Reason]),
-            ?ABORT
+    case any_needs_concat(Sources, Destination) of
+        true ->
+            Contents = [read(Source) || Source <- Sources],
+            case file:write_file(Destination, lists:flatten(Contents), [write]) of
+                ok ->
+                    ?CONSOLE("Built asset ~s~n", [Destination]);
+                {error, Reason} ->
+                    ?ERROR("Building asset ~s failed:~n  ~p~n",
+                           [Destination, Reason]),
+                    ?ABORT
+            end;
+        false ->
+            ok
     end,
     build_each(Rest).
 
@@ -133,6 +138,12 @@ read(File) ->
                    [File, Reason]),
             ?ABORT
     end.
+
+any_needs_concat(Sources, Destination) ->
+    lists:any(fun(X) -> needs_concat(X, Destination) end, Sources).
+needs_concat(Source, Destination) ->
+    filelib:last_modified(Destination) < filelib:last_modified(Source).
+
 
 delete_each([]) ->
     ok;

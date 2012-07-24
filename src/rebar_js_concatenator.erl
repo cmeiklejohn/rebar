@@ -42,8 +42,8 @@
 %%
 %% The default settings are the equivalent of:
 %%   {js_concat, [
-%%                {out_dir,    "priv/assets/javascripts"},
-%%                {doc_root,   "priv/assets/javascripts"},
+%%                {out_dir, "priv/assets/javascripts"},
+%%                {doc_root, "priv/assets/javascripts"},
 %%                {concatenations, []}
 %%               ]}.
 %%

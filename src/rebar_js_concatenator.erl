@@ -37,7 +37,7 @@
 %%  out_dir: where to put concatenated javascript files
 %%           "priv/assets/javascripts" by default
 %%
-%%  concatenations: list of proplists describing each transformation
+%%  concatenations: list of tuples describing each transformation.
 %%                  empty list by default
 %%
 %% The default settings are the equivalent of:
@@ -53,8 +53,8 @@
 %%       {out_dir, "priv/assets/javascripts"},
 %%       {doc_root, "priv/assets/javascripts"},
 %%       {concatenations, [
-%%           [{sources, ["models.js", "controllers.js"]}, {destination, "application.js"}]
-%%           [{sources, ["jquery.js", "ember.js"]}, {destination, "vendor.js"}]
+%%           {"vendor.js", ["ember.js", "jquery.js"]},
+%%           {"application.js", ["models.js", "controllers.js"]}
 %%       ]}
 %%   ]}.
 %%
@@ -75,9 +75,8 @@ compile(Config, _AppFile) ->
     Concatenations = option(concatenations, Options),
     OutDir = option(out_dir, Options),
     DocRoot = option(doc_root, Options),
-    Targets = [[{sources, normalize_paths(Sources, DocRoot)},
-                {destination, normalize_path(Destination, OutDir)}] ||
-              [{sources, Sources}, {destination, Destination}] <- Concatenations],
+    Targets = [{normalize_path(Destination, OutDir), normalize_paths(Sources, DocRoot)} ||
+               {Destination, Sources} <- Concatenations],
     build_each(Targets).
 
 clean(Config, _AppFile) ->
@@ -85,7 +84,7 @@ clean(Config, _AppFile) ->
     Concatenations = option(concatenations, Options),
     OutDir = option(out_dir, Options),
     Targets = [normalize_path(Destination, OutDir) ||
-              [{sources, _Sources}, {destination, Destination}] <- Concatenations],
+               {Destination, _Sources} <- Concatenations],
     delete_each(Targets),
     ok.
 
@@ -110,9 +109,7 @@ normalize_path(Path, Basedir) ->
 
 build_each([]) ->
     ok;
-build_each([First | Rest]) ->
-    Sources = proplists:get_value(sources, First),
-    Destination = proplists:get_value(destination, First),
+build_each([{Destination, Sources} | Rest]) ->
     case any_needs_concat(Sources, Destination) of
         true ->
             Contents = [read(Source) || Source <- Sources],
@@ -143,7 +140,6 @@ any_needs_concat(Sources, Destination) ->
     lists:any(fun(X) -> needs_concat(X, Destination) end, Sources).
 needs_concat(Source, Destination) ->
     filelib:last_modified(Destination) < filelib:last_modified(Source).
-
 
 delete_each([]) ->
     ok;

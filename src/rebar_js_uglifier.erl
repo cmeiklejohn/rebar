@@ -37,33 +37,25 @@
 %%  out_dir: where to put compressed javascript files
 %%           "priv/www/javascripts" by default
 %%
-%%  sources: list of files to concatenate
-%%           empty list by default.
-%
-%%  source_ext: extension of source files
-%%              ".js" by default
-%%
-%%  module_ext: characters to append to the javascript's file name
-%%              ".min" by default
+%%  compressions: list of tuples describing each transformation
+%%                empty list by default.
 %%
 %% The default settings are the equivalent of:
 %%   {js_uglify, [
-%%               {doc_root,   "priv/assets/javascripts"},
-%%               {out_dir,    "priv/www/javascripts"},
-%%               {sources,    []}
-%%               {source_ext, ".js"}
-%%               {module_ext, ".min"}
+%%               {doc_root, "priv/assets/javascripts"},
+%%               {out_dir, "priv/www/javascripts"},
+%%               {compressions, []}
 %%              ]}.
 %%
 %% An example of compressing a series of javascript files:
 %%
 %%   {js_uglify, [
-%%               {doc_root,   "priv/assets/javascripts"},
-%%               {out_dir,    "priv/www/javascripts"},
-%%               {sources,    ["application.js", "vendor.js"]}
-%%               {source_ext, ".js"}
-%%               {module_ext, ".min"}
-%%              ]}.
+%%      {doc_root, "priv/assets/javascripts"},
+%%      {out_dir, "priv/www/javascripts"},
+%%      {compressions, [
+%%          {"vendor.min.js", "vendor.js"}
+%%      ]}
+%%   ]}.
 %%
 
 -module(rebar_js_uglifier).
@@ -79,13 +71,14 @@
 
 compile(Config, _AppFile) ->
     Options = options(Config),
-    Sources = option(sources, Options),
+    OutDir = option(out_dir, Options),
+    DocRoot = option(doc_root, Options),
+    Compressions = option(compressions, Options),
     case uglifyjs_is_present() of
         true ->
-            Targets = [
-                [{source, normalize_source_path(Source, Options)},
-                 {destination, normalize_destination_path(Source, Options)}]
-                || Source <- Sources],
+            Targets = [{normalize_path(Destination, OutDir),
+                        normalize_path(Source, DocRoot)}
+                       || {Destination, Source} <- Compressions],
             compress_each(Targets);
         false ->
             ?ERROR(
@@ -99,8 +92,10 @@ compile(Config, _AppFile) ->
 
 clean(Config, _AppFile) ->
     Options = options(Config),
-    Sources = option(sources, Options),
-    Targets = [normalize_destination_path(Source, Options) || Source <- Sources],
+    OutDir = option(out_dir, Options),
+    Compressions = option(compressions, Options),
+    Targets = [normalize_path(Destination, OutDir)
+               || {Destination, _Source} <- Compressions],
     delete_each(Targets),
     ok.
 
@@ -116,22 +111,12 @@ option(Option, Options) ->
 
 default(doc_root) -> "priv/assets/javascripts";
 default(out_dir)  -> "priv/www/javascripts";
-default(sources)  -> [];
-default(source_ext) -> ".js";
-default(module_ext) -> ".min";
-default(custom_tags_dir) -> "".
+default(compressions) -> [].
 
-normalize_source_path(Path, Options) ->
-    filename:join([option(doc_root, Options), Path]).
+normalize_path(Path, Basedir) -> filename:join([Basedir, Path]).
 
-normalize_destination_path(Path, Options) ->
-    OutDir = option(out_dir, Options),
-    SourceExt = option(source_ext, Options),
-    ModuleExt = option(module_ext, Options),
-    filename:join([OutDir, filename:basename(Path, SourceExt) ++ ModuleExt ++ SourceExt]).
-
-needs_compress(Source, Target) ->
-    filelib:last_modified(Target) < filelib:last_modified(Source).
+needs_compress(Source, Destination) ->
+    filelib:last_modified(Destination) < filelib:last_modified(Source).
 
 delete_each([]) ->
     ok;
@@ -148,9 +133,7 @@ delete_each([First | Rest]) ->
 
 compress_each([]) ->
     ok;
-compress_each([First | Rest]) ->
-    Source = proplists:get_value(source, First),
-    Destination = proplists:get_value(destination, First),
+compress_each([{Destination, Source} | Rest]) ->
     case needs_compress(Source, Destination) of
         true ->
             Cmd = lists:flatten(["uglifyjs ", " -o ", Destination, " ", Source]),
